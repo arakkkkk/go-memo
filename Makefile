@@ -31,3 +31,7 @@ watch:
 uml:
 	goplantuml -output doc/uml.md -ignore ent -recursive ./
 
+swag:
+	swag init -g cmd/app/main.go --output ./api
+
+

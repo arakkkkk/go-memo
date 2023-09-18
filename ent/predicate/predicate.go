@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// LikeRecord is the predicate function for likerecord builders.
+type LikeRecord func(*sql.Selector)
+
 // Memo is the predicate function for memo builders.
 type Memo func(*sql.Selector)
 

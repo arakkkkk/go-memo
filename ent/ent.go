@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"memo/ent/likerecord"
 	"memo/ent/memo"
 	"memo/ent/user"
 	"reflect"
@@ -74,8 +75,9 @@ var (
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			memo.Table: memo.ValidColumn,
-			user.Table: user.ValidColumn,
+			likerecord.Table: likerecord.ValidColumn,
+			memo.Table:       memo.ValidColumn,
+			user.Table:       user.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)

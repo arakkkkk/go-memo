@@ -7,10 +7,7 @@ import (
 	entUser "memo/ent/user"
 	"memo/internal/domain/user"
 	"memo/internal/domain/user/entity"
-	"strconv"
-	"time"
 
-	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -25,6 +22,10 @@ func New(ent *ent.Client) *Repository {
 }
 
 func (r *Repository) Register(ctx context.Context, req *user.RegisterRequest) (*entity.User, error) {
+	user, _ := r.ent.User.Query().Where(entUser.Name(req.Name)).Only(ctx)
+	if user != nil {
+		return nil, fmt.Errorf("That username is already in use!")
+	}
 	if req.Password != req.PasswordConfirm {
 		return nil, fmt.Errorf("Passwords do not match!")
 	}
@@ -34,12 +35,12 @@ func (r *Repository) Register(ctx context.Context, req *user.RegisterRequest) (*
 		SetName(req.Name).
 		SetPassword(hashHassword).
 		Save(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed creating user: %v", err)
 	}
 
 	resp := &entity.User{
+		ID:       user.ID,
 		Name:     user.Name,
 		CretedAt: user.CreatedAt,
 	}
@@ -54,6 +55,7 @@ func (r *Repository) List(ctx context.Context) ([]*entity.User, error) {
 	resp := make([]*entity.User, 0)
 	for _, v := range users {
 		resp = append(resp, &entity.User{
+			ID:       v.ID,
 			Name:     v.Name,
 			CretedAt: v.CreatedAt,
 		})
@@ -61,25 +63,20 @@ func (r *Repository) List(ctx context.Context) ([]*entity.User, error) {
 	return resp, nil
 }
 
-func (r *Repository) Login(ctx context.Context, req *user.LoginRequest) (string, error) {
+func (r *Repository) Login(ctx context.Context, req *user.LoginRequest) (*entity.User, error) {
 	user, err := r.ent.User.Query().Where(entUser.Name(req.Name)).Only(ctx)
 	if err != nil {
-		return "", fmt.Errorf("User not found")
+		return nil, fmt.Errorf("User not found")
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.Password, []byte(req.Password)); err != nil {
-		return "", fmt.Errorf("Login failed: wrong password")
+		return nil, fmt.Errorf("Login failed: wrong password")
 	}
 
-	// JWT
-	claims := jwt.StandardClaims{
-		Issuer:    strconv.Itoa(user.ID),            // stringに型変換
-		ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // 有効期限
+	resp := &entity.User{
+		ID:       user.ID,
+		Name:     user.Name,
+		CretedAt: user.CreatedAt,
 	}
-	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	token, err := jwtToken.SignedString([]byte("secret"))
-	if err != nil {
-		return "", err
-	}
-	return token, nil
+	return resp, nil
 }

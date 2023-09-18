@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"memo/ent/likerecord"
 	"memo/ent/memo"
 	"memo/ent/schema"
 	"memo/ent/user"
@@ -15,6 +16,12 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	likerecordFields := schema.LikeRecord{}.Fields()
+	_ = likerecordFields
+	// likerecordDescCreatedAt is the schema descriptor for created_at field.
+	likerecordDescCreatedAt := likerecordFields[2].Descriptor()
+	// likerecord.DefaultCreatedAt holds the default value on creation for the created_at field.
+	likerecord.DefaultCreatedAt = likerecordDescCreatedAt.Default.(func() time.Time)
 	memoFields := schema.Memo{}.Fields()
 	_ = memoFields
 	// memoDescDescription is the schema descriptor for description field.

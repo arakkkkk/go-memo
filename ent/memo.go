@@ -28,9 +28,10 @@ type Memo struct {
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the MemoQuery when eager-loading is set.
-	Edges        MemoEdges `json:"edges"`
-	user_memos   *int
-	selectValues sql.SelectValues
+	Edges             MemoEdges `json:"edges"`
+	like_record_memos *int
+	user_memos        *int
+	selectValues      sql.SelectValues
 }
 
 // MemoEdges holds the relations/edges for other nodes in the graph.
@@ -64,7 +65,9 @@ func (*Memo) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullTime)
 		case memo.FieldID:
 			values[i] = new(uuid.UUID)
-		case memo.ForeignKeys[0]: // user_memos
+		case memo.ForeignKeys[0]: // like_record_memos
+			values[i] = new(sql.NullInt64)
+		case memo.ForeignKeys[1]: // user_memos
 			values[i] = new(sql.NullInt64)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -112,6 +115,13 @@ func (m *Memo) assignValues(columns []string, values []any) error {
 				m.CreatedAt = value.Time
 			}
 		case memo.ForeignKeys[0]:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for edge-field like_record_memos", value)
+			} else if value.Valid {
+				m.like_record_memos = new(int)
+				*m.like_record_memos = int(value.Int64)
+			}
+		case memo.ForeignKeys[1]:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for edge-field user_memos", value)
 			} else if value.Valid {

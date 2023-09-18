@@ -22,12 +22,13 @@ func New(usecase *usecase.Usecase) *Handler {
 // Register
 // @Summary Register
 // @Description Register
+// @Tags         users
 // @Accept json
 // @Produce json
-// @Param RegisterRequest body user.RegisterRequest true ""
-// @Success 201 {object} entity.User
-// @Failure 400 {string} response.Error
-// @Failure 500 {string} response.Error
+// @Param RegisterRequest body user.RegisterRequest true "register request"
+// @Success 201 {string} ok
+// @Failure 400 {object} response.ErrorSchema
+// @Failure 500 {object} response.ErrorSchema
 // @router /api/v1/user/register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req user.RegisterRequest
@@ -35,24 +36,33 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusBadRequest, err)
 		return
 	}
-	user, err := h.usecase.Register(r.Context(), &req)
+	token, err := h.usecase.Register(r.Context(), &req)
 	if err != nil {
 		response.Error(w, http.StatusBadRequest, err)
 		return
 	}
 
-	response.Json(w, http.StatusCreated, user)
+	cookie := http.Cookie{
+		Name:     "jwt",
+		Path:     "/",
+		Value:    token,
+		Expires:  time.Now().Add(time.Hour * 24),
+		HttpOnly: true,
+	}
+	http.SetCookie(w, &cookie)
+
+	response.Json(w, http.StatusOK, "ok")
 }
 
 // Login
 // @Summary Login
 // @Description Login
+// @Tags         users
 // @Accept json
 // @Produce json
-// @Param LoginRequest body user.LoginRequest true ""
-// @Success 201 {object} string
-// @Failure 400 {string} response.Error
-// @Failure 500 {string} response.Error
+// @Param LoginRequest body user.LoginRequest true "login request"
+// @Failure 400 {object} response.ErrorSchema
+// @Failure 500 {object} response.ErrorSchema
 // @router /api/v1/user/login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req user.LoginRequest
@@ -66,12 +76,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cookie
 	cookie := http.Cookie{
-		Name:    "jwt",
-		Path:    "/",
-		Value:   token,
-		Expires: time.Now().Add(time.Hour * 24),
+		Name:     "jwt",
+		Path:     "/",
+		Value:    token,
+		Expires:  time.Now().Add(time.Hour * 24),
 		HttpOnly: true,
 	}
 	http.SetCookie(w, &cookie)
@@ -82,15 +91,16 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // Logout
 // @Summary Logout
 // @Description Logout
-// @Success 200 {object} "ok"
-// @Failure 500 {string} response.Error
-// @router /api/v1/user/list [get]
+// @Tags         users
+// @Failure 400 {object} response.ErrorSchema
+// @Failure 500 {object} response.ErrorSchema
+// @router /api/v1/user/logout [get]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie := http.Cookie{
-		Name:    "jwt",
-		Path:    "/",
-		Value:   "",
-		Expires: time.Now().Add(time.Hour * 24),
+		Name:     "jwt",
+		Path:     "/",
+		Value:    "",
+		Expires:  time.Now().Add(time.Hour * 24),
 		HttpOnly: true,
 	}
 	http.SetCookie(w, &cookie)
@@ -98,12 +108,13 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	response.Json(w, http.StatusOK, "ok")
 }
 
-
 // Get all users
 // @Summary Get all users
 // @Description Get all users
+// @Tags         users
 // @Success 200 {object} []entity.Users
-// @Failure 500 {string} response.Error
+// @Failure 400 {object} response.ErrorSchema
+// @Failure 500 {object} response.ErrorSchema
 // @router /api/v1/user/list [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	users, err := h.usecase.List(r.Context())
@@ -112,4 +123,3 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Json(w, http.StatusOK, users)
 }
-

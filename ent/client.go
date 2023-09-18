@@ -10,6 +10,7 @@ import (
 
 	"memo/ent/migrate"
 
+	"memo/ent/likerecord"
 	"memo/ent/memo"
 	"memo/ent/user"
 
@@ -25,6 +26,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// LikeRecord is the client for interacting with the LikeRecord builders.
+	LikeRecord *LikeRecordClient
 	// Memo is the client for interacting with the Memo builders.
 	Memo *MemoClient
 	// User is the client for interacting with the User builders.
@@ -42,6 +45,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.LikeRecord = NewLikeRecordClient(c.config)
 	c.Memo = NewMemoClient(c.config)
 	c.User = NewUserClient(c.config)
 }
@@ -124,10 +128,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Memo:   NewMemoClient(cfg),
-		User:   NewUserClient(cfg),
+		ctx:        ctx,
+		config:     cfg,
+		LikeRecord: NewLikeRecordClient(cfg),
+		Memo:       NewMemoClient(cfg),
+		User:       NewUserClient(cfg),
 	}, nil
 }
 
@@ -145,17 +150,18 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Memo:   NewMemoClient(cfg),
-		User:   NewUserClient(cfg),
+		ctx:        ctx,
+		config:     cfg,
+		LikeRecord: NewLikeRecordClient(cfg),
+		Memo:       NewMemoClient(cfg),
+		User:       NewUserClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Memo.
+//		LikeRecord.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -177,6 +183,7 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.LikeRecord.Use(hooks...)
 	c.Memo.Use(hooks...)
 	c.User.Use(hooks...)
 }
@@ -184,6 +191,7 @@ func (c *Client) Use(hooks ...Hook) {
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.LikeRecord.Intercept(interceptors...)
 	c.Memo.Intercept(interceptors...)
 	c.User.Intercept(interceptors...)
 }
@@ -191,12 +199,164 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *LikeRecordMutation:
+		return c.LikeRecord.mutate(ctx, m)
 	case *MemoMutation:
 		return c.Memo.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// LikeRecordClient is a client for the LikeRecord schema.
+type LikeRecordClient struct {
+	config
+}
+
+// NewLikeRecordClient returns a client for the LikeRecord from the given config.
+func NewLikeRecordClient(c config) *LikeRecordClient {
+	return &LikeRecordClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `likerecord.Hooks(f(g(h())))`.
+func (c *LikeRecordClient) Use(hooks ...Hook) {
+	c.hooks.LikeRecord = append(c.hooks.LikeRecord, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `likerecord.Intercept(f(g(h())))`.
+func (c *LikeRecordClient) Intercept(interceptors ...Interceptor) {
+	c.inters.LikeRecord = append(c.inters.LikeRecord, interceptors...)
+}
+
+// Create returns a builder for creating a LikeRecord entity.
+func (c *LikeRecordClient) Create() *LikeRecordCreate {
+	mutation := newLikeRecordMutation(c.config, OpCreate)
+	return &LikeRecordCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of LikeRecord entities.
+func (c *LikeRecordClient) CreateBulk(builders ...*LikeRecordCreate) *LikeRecordCreateBulk {
+	return &LikeRecordCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for LikeRecord.
+func (c *LikeRecordClient) Update() *LikeRecordUpdate {
+	mutation := newLikeRecordMutation(c.config, OpUpdate)
+	return &LikeRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *LikeRecordClient) UpdateOne(lr *LikeRecord) *LikeRecordUpdateOne {
+	mutation := newLikeRecordMutation(c.config, OpUpdateOne, withLikeRecord(lr))
+	return &LikeRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *LikeRecordClient) UpdateOneID(id int) *LikeRecordUpdateOne {
+	mutation := newLikeRecordMutation(c.config, OpUpdateOne, withLikeRecordID(id))
+	return &LikeRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for LikeRecord.
+func (c *LikeRecordClient) Delete() *LikeRecordDelete {
+	mutation := newLikeRecordMutation(c.config, OpDelete)
+	return &LikeRecordDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *LikeRecordClient) DeleteOne(lr *LikeRecord) *LikeRecordDeleteOne {
+	return c.DeleteOneID(lr.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *LikeRecordClient) DeleteOneID(id int) *LikeRecordDeleteOne {
+	builder := c.Delete().Where(likerecord.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &LikeRecordDeleteOne{builder}
+}
+
+// Query returns a query builder for LikeRecord.
+func (c *LikeRecordClient) Query() *LikeRecordQuery {
+	return &LikeRecordQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeLikeRecord},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a LikeRecord entity by its id.
+func (c *LikeRecordClient) Get(ctx context.Context, id int) (*LikeRecord, error) {
+	return c.Query().Where(likerecord.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *LikeRecordClient) GetX(ctx context.Context, id int) *LikeRecord {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMemos queries the memos edge of a LikeRecord.
+func (c *LikeRecordClient) QueryMemos(lr *LikeRecord) *MemoQuery {
+	query := (&MemoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := lr.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(likerecord.Table, likerecord.FieldID, id),
+			sqlgraph.To(memo.Table, memo.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, likerecord.MemosTable, likerecord.MemosColumn),
+		)
+		fromV = sqlgraph.Neighbors(lr.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUsers queries the users edge of a LikeRecord.
+func (c *LikeRecordClient) QueryUsers(lr *LikeRecord) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := lr.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(likerecord.Table, likerecord.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, likerecord.UsersTable, likerecord.UsersColumn),
+		)
+		fromV = sqlgraph.Neighbors(lr.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *LikeRecordClient) Hooks() []Hook {
+	return c.hooks.LikeRecord
+}
+
+// Interceptors returns the client interceptors.
+func (c *LikeRecordClient) Interceptors() []Interceptor {
+	return c.inters.LikeRecord
+}
+
+func (c *LikeRecordClient) mutate(ctx context.Context, m *LikeRecordMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&LikeRecordCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&LikeRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&LikeRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&LikeRecordDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown LikeRecord mutation op: %q", m.Op())
 	}
 }
 
@@ -471,9 +631,9 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Memo, User []ent.Hook
+		LikeRecord, Memo, User []ent.Hook
 	}
 	inters struct {
-		Memo, User []ent.Interceptor
+		LikeRecord, Memo, User []ent.Interceptor
 	}
 )

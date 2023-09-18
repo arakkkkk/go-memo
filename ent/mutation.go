@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"memo/ent/likerecord"
 	"memo/ent/memo"
 	"memo/ent/predicate"
 	"memo/ent/user"
@@ -26,9 +27,656 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeMemo = "Memo"
-	TypeUser = "User"
+	TypeLikeRecord = "LikeRecord"
+	TypeMemo       = "Memo"
+	TypeUser       = "User"
 )
+
+// LikeRecordMutation represents an operation that mutates the LikeRecord nodes in the graph.
+type LikeRecordMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	user_id       *int
+	adduser_id    *int
+	memo_id       *uuid.UUID
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	memos         map[uuid.UUID]struct{}
+	removedmemos  map[uuid.UUID]struct{}
+	clearedmemos  bool
+	users         map[int]struct{}
+	removedusers  map[int]struct{}
+	clearedusers  bool
+	done          bool
+	oldValue      func(context.Context) (*LikeRecord, error)
+	predicates    []predicate.LikeRecord
+}
+
+var _ ent.Mutation = (*LikeRecordMutation)(nil)
+
+// likerecordOption allows management of the mutation configuration using functional options.
+type likerecordOption func(*LikeRecordMutation)
+
+// newLikeRecordMutation creates new mutation for the LikeRecord entity.
+func newLikeRecordMutation(c config, op Op, opts ...likerecordOption) *LikeRecordMutation {
+	m := &LikeRecordMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeLikeRecord,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withLikeRecordID sets the ID field of the mutation.
+func withLikeRecordID(id int) likerecordOption {
+	return func(m *LikeRecordMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *LikeRecord
+		)
+		m.oldValue = func(ctx context.Context) (*LikeRecord, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().LikeRecord.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withLikeRecord sets the old LikeRecord of the mutation.
+func withLikeRecord(node *LikeRecord) likerecordOption {
+	return func(m *LikeRecordMutation) {
+		m.oldValue = func(context.Context) (*LikeRecord, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m LikeRecordMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m LikeRecordMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *LikeRecordMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *LikeRecordMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().LikeRecord.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *LikeRecordMutation) SetUserID(i int) {
+	m.user_id = &i
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *LikeRecordMutation) UserID() (r int, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the LikeRecord entity.
+// If the LikeRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LikeRecordMutation) OldUserID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds i to the "user_id" field.
+func (m *LikeRecordMutation) AddUserID(i int) {
+	if m.adduser_id != nil {
+		*m.adduser_id += i
+	} else {
+		m.adduser_id = &i
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *LikeRecordMutation) AddedUserID() (r int, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *LikeRecordMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetMemoID sets the "memo_id" field.
+func (m *LikeRecordMutation) SetMemoID(u uuid.UUID) {
+	m.memo_id = &u
+}
+
+// MemoID returns the value of the "memo_id" field in the mutation.
+func (m *LikeRecordMutation) MemoID() (r uuid.UUID, exists bool) {
+	v := m.memo_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMemoID returns the old "memo_id" field's value of the LikeRecord entity.
+// If the LikeRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LikeRecordMutation) OldMemoID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMemoID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMemoID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMemoID: %w", err)
+	}
+	return oldValue.MemoID, nil
+}
+
+// ResetMemoID resets all changes to the "memo_id" field.
+func (m *LikeRecordMutation) ResetMemoID() {
+	m.memo_id = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *LikeRecordMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *LikeRecordMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the LikeRecord entity.
+// If the LikeRecord object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LikeRecordMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *LikeRecordMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// AddMemoIDs adds the "memos" edge to the Memo entity by ids.
+func (m *LikeRecordMutation) AddMemoIDs(ids ...uuid.UUID) {
+	if m.memos == nil {
+		m.memos = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		m.memos[ids[i]] = struct{}{}
+	}
+}
+
+// ClearMemos clears the "memos" edge to the Memo entity.
+func (m *LikeRecordMutation) ClearMemos() {
+	m.clearedmemos = true
+}
+
+// MemosCleared reports if the "memos" edge to the Memo entity was cleared.
+func (m *LikeRecordMutation) MemosCleared() bool {
+	return m.clearedmemos
+}
+
+// RemoveMemoIDs removes the "memos" edge to the Memo entity by IDs.
+func (m *LikeRecordMutation) RemoveMemoIDs(ids ...uuid.UUID) {
+	if m.removedmemos == nil {
+		m.removedmemos = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		delete(m.memos, ids[i])
+		m.removedmemos[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedMemos returns the removed IDs of the "memos" edge to the Memo entity.
+func (m *LikeRecordMutation) RemovedMemosIDs() (ids []uuid.UUID) {
+	for id := range m.removedmemos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// MemosIDs returns the "memos" edge IDs in the mutation.
+func (m *LikeRecordMutation) MemosIDs() (ids []uuid.UUID) {
+	for id := range m.memos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetMemos resets all changes to the "memos" edge.
+func (m *LikeRecordMutation) ResetMemos() {
+	m.memos = nil
+	m.clearedmemos = false
+	m.removedmemos = nil
+}
+
+// AddUserIDs adds the "users" edge to the User entity by ids.
+func (m *LikeRecordMutation) AddUserIDs(ids ...int) {
+	if m.users == nil {
+		m.users = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.users[ids[i]] = struct{}{}
+	}
+}
+
+// ClearUsers clears the "users" edge to the User entity.
+func (m *LikeRecordMutation) ClearUsers() {
+	m.clearedusers = true
+}
+
+// UsersCleared reports if the "users" edge to the User entity was cleared.
+func (m *LikeRecordMutation) UsersCleared() bool {
+	return m.clearedusers
+}
+
+// RemoveUserIDs removes the "users" edge to the User entity by IDs.
+func (m *LikeRecordMutation) RemoveUserIDs(ids ...int) {
+	if m.removedusers == nil {
+		m.removedusers = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.users, ids[i])
+		m.removedusers[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedUsers returns the removed IDs of the "users" edge to the User entity.
+func (m *LikeRecordMutation) RemovedUsersIDs() (ids []int) {
+	for id := range m.removedusers {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// UsersIDs returns the "users" edge IDs in the mutation.
+func (m *LikeRecordMutation) UsersIDs() (ids []int) {
+	for id := range m.users {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetUsers resets all changes to the "users" edge.
+func (m *LikeRecordMutation) ResetUsers() {
+	m.users = nil
+	m.clearedusers = false
+	m.removedusers = nil
+}
+
+// Where appends a list predicates to the LikeRecordMutation builder.
+func (m *LikeRecordMutation) Where(ps ...predicate.LikeRecord) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the LikeRecordMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *LikeRecordMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.LikeRecord, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *LikeRecordMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *LikeRecordMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (LikeRecord).
+func (m *LikeRecordMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *LikeRecordMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.user_id != nil {
+		fields = append(fields, likerecord.FieldUserID)
+	}
+	if m.memo_id != nil {
+		fields = append(fields, likerecord.FieldMemoID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, likerecord.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *LikeRecordMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case likerecord.FieldUserID:
+		return m.UserID()
+	case likerecord.FieldMemoID:
+		return m.MemoID()
+	case likerecord.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *LikeRecordMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case likerecord.FieldUserID:
+		return m.OldUserID(ctx)
+	case likerecord.FieldMemoID:
+		return m.OldMemoID(ctx)
+	case likerecord.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown LikeRecord field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LikeRecordMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case likerecord.FieldUserID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case likerecord.FieldMemoID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMemoID(v)
+		return nil
+	case likerecord.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown LikeRecord field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *LikeRecordMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, likerecord.FieldUserID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *LikeRecordMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case likerecord.FieldUserID:
+		return m.AddedUserID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LikeRecordMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case likerecord.FieldUserID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown LikeRecord numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *LikeRecordMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *LikeRecordMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *LikeRecordMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown LikeRecord nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *LikeRecordMutation) ResetField(name string) error {
+	switch name {
+	case likerecord.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case likerecord.FieldMemoID:
+		m.ResetMemoID()
+		return nil
+	case likerecord.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown LikeRecord field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *LikeRecordMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.memos != nil {
+		edges = append(edges, likerecord.EdgeMemos)
+	}
+	if m.users != nil {
+		edges = append(edges, likerecord.EdgeUsers)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *LikeRecordMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case likerecord.EdgeMemos:
+		ids := make([]ent.Value, 0, len(m.memos))
+		for id := range m.memos {
+			ids = append(ids, id)
+		}
+		return ids
+	case likerecord.EdgeUsers:
+		ids := make([]ent.Value, 0, len(m.users))
+		for id := range m.users {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *LikeRecordMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.removedmemos != nil {
+		edges = append(edges, likerecord.EdgeMemos)
+	}
+	if m.removedusers != nil {
+		edges = append(edges, likerecord.EdgeUsers)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *LikeRecordMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case likerecord.EdgeMemos:
+		ids := make([]ent.Value, 0, len(m.removedmemos))
+		for id := range m.removedmemos {
+			ids = append(ids, id)
+		}
+		return ids
+	case likerecord.EdgeUsers:
+		ids := make([]ent.Value, 0, len(m.removedusers))
+		for id := range m.removedusers {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *LikeRecordMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedmemos {
+		edges = append(edges, likerecord.EdgeMemos)
+	}
+	if m.clearedusers {
+		edges = append(edges, likerecord.EdgeUsers)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *LikeRecordMutation) EdgeCleared(name string) bool {
+	switch name {
+	case likerecord.EdgeMemos:
+		return m.clearedmemos
+	case likerecord.EdgeUsers:
+		return m.clearedusers
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *LikeRecordMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown LikeRecord unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *LikeRecordMutation) ResetEdge(name string) error {
+	switch name {
+	case likerecord.EdgeMemos:
+		m.ResetMemos()
+		return nil
+	case likerecord.EdgeUsers:
+		m.ResetUsers()
+		return nil
+	}
+	return fmt.Errorf("unknown LikeRecord edge %s", name)
+}
 
 // MemoMutation represents an operation that mutates the Memo nodes in the graph.
 type MemoMutation struct {

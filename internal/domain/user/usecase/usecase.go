@@ -2,9 +2,11 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"memo/internal/domain/user"
 	"memo/internal/domain/user/entity"
 	"memo/internal/domain/user/repository"
+	authUtil "memo/internal/util/auth"
 )
 
 type Usecase struct {
@@ -17,12 +19,28 @@ func New(repo *repository.Repository) *Usecase {
 	}
 }
 
-func (u *Usecase) Register(ctx context.Context, req *user.RegisterRequest) (*entity.User, error) {
-	return u.repo.Register(ctx, req)
+func (u *Usecase) Register(ctx context.Context, req *user.RegisterRequest) (string, error) {
+	user, err := u.repo.Register(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	}
+	token, err := authUtil.GenJwt(user.ID)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	}
+	return token, nil
 }
 
 func (u *Usecase) Login(ctx context.Context, req *user.LoginRequest) (string, error) {
-	return u.repo.Login(ctx, req)
+	user, err := u.repo.Login(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	}
+	token, err := authUtil.GenJwt(user.ID)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	}
+	return token, nil
 }
 
 func (u *Usecase) List(ctx context.Context) ([]*entity.User, error) {

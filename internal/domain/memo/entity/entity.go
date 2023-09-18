@@ -3,7 +3,7 @@ package entity
 import "time"
 
 type Memo struct {
-  Description string
-  CretedAt time.Time
+	UserID      string
+	Description string
+	CretedAt    time.Time
 }
-

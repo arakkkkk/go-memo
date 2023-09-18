@@ -8,6 +8,18 @@ import (
 	"memo/ent"
 )
 
+// The LikeRecordFunc type is an adapter to allow the use of ordinary
+// function as LikeRecord mutator.
+type LikeRecordFunc func(context.Context, *ent.LikeRecordMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f LikeRecordFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.LikeRecordMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LikeRecordMutation", m)
+}
+
 // The MemoFunc type is an adapter to allow the use of ordinary
 // function as Memo mutator.
 type MemoFunc func(context.Context, *ent.MemoMutation) (ent.Value, error)

@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"memo/ent"
+	entMemo "memo/ent/memo"
 	"memo/internal/domain/memo"
 	"memo/internal/domain/memo/entity"
+
+	"github.com/google/uuid"
 )
 
-type Repository struct{
+type Repository struct {
 	ent *ent.Client
 }
 
@@ -18,41 +21,46 @@ func New(ent *ent.Client) *Repository {
 	}
 }
 
-func entBindSchema(m *ent.Memo) *entity.Memo {
+func (r *Repository) Get(ctx context.Context, memoID uuid.UUID) (*entity.Memo, error) {
+	memo, err := r.ent.Memo.Query().Where(entMemo.ID(memoID)).Only(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%v", err)
+	}
 	resp := &entity.Memo{
-		Description: m.Description,
-		CretedAt: m.CreatedAt,
+		Description: memo.Description,
+		CretedAt:    memo.CreatedAt,
 	}
-	return resp
-}
-func entMemosBindEntiryMemos(t []*ent.Memo) []*entity.Memo {
-	resp := make([]*entity.Memo, 0)
-	for _, v := range t {
-		resp = append(resp, entBindSchema(v))
-	}
-	return resp
+	return resp, nil
 }
 
 func (r *Repository) List(ctx context.Context) ([]*entity.Memo, error) {
-  memos, err := r.ent.Memo.Query().All(ctx)
-  resp := entMemosBindEntiryMemos(memos)
-  if err != nil {
-		return nil, fmt.Errorf("failed query user: %v", err)
+	memos, err := r.ent.Memo.Query().All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%v", err)
 	}
-  return resp, nil
+	resp := make([]*entity.Memo, 0)
+	for _, v := range memos {
+		resp = append(resp, &entity.Memo{
+			Description: v.Description,
+			CretedAt:    v.CreatedAt,
+		})
+	}
+	return resp, nil
 }
 
 func (r *Repository) Create(ctx context.Context, req *memo.CreateRequest) (*entity.Memo, error) {
-  memo, err := r.ent.Memo.
-    Create().
-    SetDescription(req.Description).
-    Save(ctx)
+	memo, err := r.ent.Memo.
+		Create().
+		SetDescription(req.Description).
+		Save(ctx)
 
-  if err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed creating memo: %v", err)
 	}
 
-	entityMemo := entBindSchema(memo)
-  return entityMemo, nil
+	resp := &entity.Memo{
+		Description: memo.Description,
+		CretedAt:    memo.CreatedAt,
+	}
+	return resp, nil
 }
-
